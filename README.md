@@ -10,5 +10,5 @@ Create .env file with
 Create a data directory (this is where monthly exports will be stored) 
 
 # Calling the Script 
-ruby get_amber_usage_monthly.rb 2021-11 
+- ruby get_amber_usage_monthly.rb 2021-11 
 

@@ -42,19 +42,22 @@ def get_amber_usage_response(month)
   start_date_of_month = Date.parse(month + "-01") 
   end_date_of_month = (start_date_of_month >> 1)-1
   response_body = get_amber_usage(AMBER_SITE_ID,start_date_of_month.to_s,end_date_of_month.to_s)
+  response_json = JSON.parse(response_body)
   response_json.each { |h| h.delete("tariffInformation") } # remove tariffInformation from all data, some early data doesn't have the information
-  return response_body
+  response_json.each { |h| h.delete("descriptor") } # remove descriptor from all data
+
+  return response_json
 end
 
 def write_monthly_file_json(month)
-  response_body = get_amber_usage_response(month)
+  response_json = get_amber_usage_response(month)
   file_name = "data/amber_usage_#{month}.json"
-  File.write(file_name,JSON.pretty_generate(JSON.parse(response_body)))
+  File.write(file_name,JSON.pretty_generate(response_json))
   puts "File #{file_name} written to data directory"
 end
 
 def write_monthly_file_csv(month)
-  response_body = get_amber_usage_response(month)
+  response_json = get_amber_usage_response(month)
   file_name = "data/amber_usage_#{month}.csv"
   headers = response_json.first.keys
   CSV.open(file_name, "w", 
