@@ -5,11 +5,13 @@ require 'dotenv'
 require 'date'
 require 'csv'
 require 'byebug'
+require "google/cloud/storage"
 
 Dotenv.load
 
 AMBER_API_TOKEN=ENV['AMBER_API_TOKEN']
 AMBER_SITE_ID=ENV['AMBER_SITE_ID']
+DATA_FOLDER="data"
 
 month = ARGV[0]
 
@@ -45,29 +47,51 @@ def get_amber_usage_response(month)
   response_json = JSON.parse(response_body)
   response_json.each { |h| h.delete("tariffInformation") } # remove tariffInformation from all data, some early data doesn't have the information
   response_json.each { |h| h.delete("descriptor") } # remove descriptor from all data
-
   return response_json
 end
 
-def write_monthly_file_json(month)
+def write_monthly_file_json(month,file_name,file_path)
   response_json = get_amber_usage_response(month)
-  file_name = "data/amber_usage_#{month}.json"
   File.write(file_name,JSON.pretty_generate(response_json))
-  puts "File #{file_name} written to data directory"
+  puts "File #{file_path} written to #{file_path}"
 end
 
-def write_monthly_file_csv(month)
+def write_monthly_file_csv(month,file_name,file_path)
   response_json = get_amber_usage_response(month)
   file_name = "data/amber_usage_#{month}.csv"
   headers = response_json.first.keys
-  CSV.open(file_name, "w", 
+  CSV.open(file_path, "w", 
   :write_headers=> true,
   :headers=> headers) do |csv| 
     response_json.each do |hash|
       csv << hash.values
     end
   end
-  puts "File #{file_name} written to data directory"
+  puts "File #{file_name} written to #{file_path}"
 end
 
-write_monthly_file_csv(month)
+def upload_datafile_to_gcloud_storage(file_name,file_path)
+  puts "Uploading #{file_path} to Google Cloud Storage Bucket #{GOOGLE_CLOUD_STORAGE_DATA_BUCKET} in Project ID #{GOOGLE_CLOUD_PROJECT_ID} ..."
+  storage = Google::Cloud::Storage.new project_id: GOOGLE_CLOUD_PROJECT_ID
+  bucket  = storage.bucket GOOGLE_CLOUD_STORAGE_DATA_BUCKET, skip_lookup: true
+  file = bucket.create_file file_path, file_name
+  puts "Uploaded #{file_path} as #{file.name} in Google Cloud Storage Bucket #{GOOGLE_CLOUD_STORAGE_DATA_BUCKET}"
+  return file
+end
+
+file_name = "amber_usage_#{month}.csv"
+file_path = File.join(DATA_FOLDER,file_name)
+write_monthly_file_csv(month,file_name,file_path)
+
+
+if ARGV[1] == "--upload_to_gcloud_storage"
+  GOOGLE_CLOUD_PROJECT_ID=ENV['GOOGLE_CLOUD_PROJECT_ID']
+  GOOGLE_CLOUD_STORAGE_DATA_BUCKET=ENV['GOOGLE_CLOUD_STORAGE_DATA_BUCKET']
+  raise ArgumentError, "must supply env variables GOOGLE_CLOUD_STORAGE_DATA_BUCKET and GOOGLE_CLOUD_PROJECT_ID" if GOOGLE_CLOUD_STORAGE_DATA_BUCKET.empty? || GOOGLE_CLOUD_PROJECT_ID.empty?
+  file = upload_datafile_to_gcloud_storage(file_name,file_path)
+end
+
+
+  
+
+
